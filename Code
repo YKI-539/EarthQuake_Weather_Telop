@@ -1,0 +1,515 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>防災・気象情報 自動更新テロップ (デフォルト速度高速化・全国47都道府県版)</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: rgba(0, 0, 0, 0); 
+            font-family: 'Helvetica Neue', Arial, 'Hiragino Kaku Gothic ProN', 'Hiragino Sans', Meiryo, sans-serif;
+            overflow: hidden;
+        }
+
+        /* テロップ全体のコンテナ */
+        .ticker-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 60px;
+            background-color: rgba(12, 12, 20, 0.96);
+            display: flex;
+            align-items: center;
+            border-top: 4px solid #6f42c1;
+            box-shadow: 0 -4px 15px rgba(0, 0, 0, 0.6);
+            box-sizing: border-box;
+            transition: border-color 0.5s ease;
+        }
+
+        /* 左側の固定見出し */
+        .ticker-label {
+            background-color: #6f42c1;
+            color: #ffffff;
+            font-weight: bold;
+            font-size: 20px;
+            padding: 0 20px;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            white-space: nowrap;
+            z-index: 10;
+            letter-spacing: 2px;
+            box-shadow: 5px 0 10px rgba(0, 0, 0, 0.4);
+            transition: background-color 0.5s ease;
+            min-width: 140px;
+        }
+
+        /* 文字が流れるエリア */
+        .ticker-window {
+            flex-grow: 1;
+            overflow: hidden;
+            position: relative;
+            height: 100%;
+            display: flex;
+            align-items: center;
+        }
+
+        /* 流れるテキスト本体 */
+        .ticker-text {
+            display: inline-block;
+            position: absolute;
+            white-space: nowrap;
+            color: #ffffff;
+            font-size: 24px;
+            font-weight: bold;
+            line-height: 1;
+            transform: translate3d(100vw, 0, 0);
+        }
+
+        /* アニメーションクラス */
+        .scroll-active {
+            animation: ticker-animation var(--scroll-duration) linear forwards;
+        }
+
+        @keyframes ticker-animation {
+            0% {
+                transform: translate3d(100vw, 0, 0);
+            }
+            100% {
+                transform: translate3d(-100%, 0, 0);
+            }
+        }
+
+        /* 右側の時計・操作エリアのコンテナ */
+        .right-panel {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            background-color: #08080c;
+            padding: 0 15px;
+            z-index: 10;
+            box-shadow: -5px 0 15px rgba(0, 0, 0, 0.5);
+            border-left: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        /* 液晶風デジタル時計のデザイン */
+        .digital-clock {
+            color: #00ffcc;
+            font-family: 'Share Tech Mono', monospace;
+            font-size: 30px;
+            font-weight: normal;
+            margin-right: 15px;
+            letter-spacing: 2px;
+            white-space: nowrap;
+            text-shadow: 0 0 10px rgba(0, 255, 210, 0.6), 0 0 20px rgba(0, 255, 210, 0.3);
+            background-color: #111116;
+            padding: 2px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(0, 255, 210, 0.2);
+        }
+
+        /* 設定・入力用ボタン */
+        .admin-btn {
+            background-color: #22222a;
+            color: #ccc;
+            border: 1px solid #444455;
+            padding: 6px 12px;
+            font-size: 13px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .admin-btn:hover {
+            background-color: #333344;
+            color: #fff;
+            border-color: #00ffcc;
+        }
+
+        /* モーダル（入力ポップアップ）のスタイル */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0, 0, 0, 0.85);
+            z-index: 100;
+            justify-content: center;
+            align-items: center;
+        }
+        .modal-content {
+            background-color: #15151e;
+            color: #fff;
+            padding: 20px;
+            border-radius: 8px;
+            width: 90%;
+            max-width: 550px;
+            box-shadow: 0 4px 25px rgba(0,0,0,0.7);
+            border: 1px solid #333344;
+        }
+        .modal-content h3 {
+            margin-top: 0;
+            color: #00ffcc;
+            border-bottom: 1px solid #333344;
+            padding-bottom: 10px;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #aaa;
+            margin-bottom: 8px;
+            font-weight: bold;
+        }
+        .modal-content textarea {
+            width: 100%;
+            height: 100px;
+            background-color: #22222e;
+            color: #fff;
+            border: 1px solid #444455;
+            padding: 8px;
+            box-sizing: border-box;
+            border-radius: 4px;
+            font-size: 14px;
+            resize: none;
+        }
+        
+        /* 速度調整用スライダーのスタイル */
+        .speed-control-container {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            background-color: #22222e;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #444455;
+        }
+        .speed-slider {
+            flex-grow: 1;
+            cursor: pointer;
+            accent-color: #00ffcc;
+        }
+        .speed-value-display {
+            font-family: 'Share Tech Mono', monospace;
+            color: #00ffcc;
+            font-size: 18px;
+            font-weight: bold;
+            min-width: 60px;
+            text-align: right;
+        }
+
+        .modal-buttons {
+            margin-top: 20px;
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            border-top: 1px solid #333344;
+            padding-top: 15px;
+        }
+        .modal-buttons button {
+            padding: 8px 18px;
+            border-radius: 4px;
+            border: none;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .save-btn { background-color: #0275d8; color: white; }
+        .save-btn:hover { background-color: #0288d1; }
+        .close-btn { background-color: #444; color: #ccc; }
+    </style>
+</head>
+<body>
+
+    <div class="ticker-container" id="tickerContainer">
+        <div class="ticker-label" id="tickerLabel">独自情報</div>
+        <div class="ticker-window">
+            <div class="ticker-text" id="tickerText">情報を読み込み中...</div>
+        </div>
+        <div class="right-panel">
+            <div class="digital-clock" id="digitalClock">00:00:00</div>
+            <button class="admin-btn" id="openModalBtn">設定・入力</button>
+        </div>
+    </div>
+
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-content">
+            <h3>テロップシステム設定</h3>
+            
+            <div class="form-group">
+                <label for="customTextInput">① 独自情報お知らせテキスト</label>
+                <textarea id="customTextInput" placeholder="ここに流したい文章を入力してください..."></textarea>
+            </div>
+
+            <div class="form-group">
+                <label for="speedSlider">② テロップの速度係数 (SPEED_FACTOR)</label>
+                <div class="speed-control-container">
+                    <input type="range" id="speedSlider" class="speed-slider" min="0.010" max="0.050" step="0.005" value="0.020">
+                    <span id="speedValueDisplay" class="speed-value-display">0.020</span>
+                </div>
+                <small style="color: #888; font-size: 12px; margin-top: 4px; display: block;">
+                    ※ 値が小さいほど速く流れます。ご指定の 0.020 がデフォルト値に設定されています。
+                </small>
+            </div>
+
+            <div class="modal-buttons">
+                <button class="close-btn" id="closeModalBtn">閉じる</button>
+                <button class="save-btn" id="saveSettingBtn">設定を適用する</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // デフォルトの速度係数をご指定の 0.020 に変更
+        let speedFactor = 0.015; 
+
+        // 47都道府県の気象庁コード
+        const PREFECTURES = [
+            { code: "016000", name: "北海道" }, { code: "020000", name: "青森" }, { code: "030000", name: "岩手" },
+            { code: "040000", name: "宮城" }, { code: "050000", name: "秋田" }, { code: "060000", name: "山形" },
+            { code: "070000", name: "福島" }, { code: "080000", name: "茨城" }, { code: "090000", name: "栃木" },
+            { code: "100000", name: "群馬" }, { code: "110000", name: "埼玉" }, { code: "120000", name: "千葉" },
+            { code: "130000", name: "東京" }, { code: "140000", name: "神奈川" }, { code: "150000", name: "新潟" },
+            { code: "160000", name: "富山" }, { code: "170000", name: "石川" }, { code: "180000", name: "福井" },
+            { code: "190000", name: "山梨" }, { code: "200000", name: "長野" }, { code: "210000", name: "岐阜" },
+            { code: "220000", name: "静岡" }, { code: "230000", name: "愛知" }, { code: "240000", name: "三重" },
+            { code: "250000", name: "滋賀" }, { code: "260000", name: "京都" }, { code: "270000", name: "大阪" },
+            { code: "280000", name: "兵庫" }, { code: "290000", name: "奈良" }, { code: "300000", name: "和歌山" },
+            { code: "310000", name: "鳥取" }, { code: "320000", name: "島根" }, { code: "330000", name: "岡山" },
+            { code: "340000", name: "広島" }, { code: "350000", name: "山口" }, { code: "360000", name: "徳島" },
+            { code: "370000", name: "香川" }, { code: "380000", name: "愛媛" }, { code: "390000", name: "高知" },
+            { code: "400000", name: "福岡" }, { code: "410000", name: "佐賀" }, { code: "420000", name: "長崎" },
+            { code: "430000", name: "熊本" }, { code: "440000", name: "大分" }, { code: "450000", name: "宮崎" },
+            { code: "460100", name: "鹿児島" }, { code: "471000", name: "沖縄" }
+        ];
+
+        const INFO_CONFIG = {
+            custom: { label: "お知らせ", color: "#6f42c1", borderColor: "#6f42c1" },
+            weather: { label: "全国天気", color: "#0275d8", borderColor: "#0275d8" },
+            warning: { label: "全国警報", color: "#f0ad4e", borderColor: "#f0ad4e" },
+            railway: { label: "運行情報", color: "#5cb85c", borderColor: "#5cb85c" },
+            earthquake: { label: "地震情報", color: "#d9534f", borderColor: "#d9534f" }
+        };
+
+        let infoData = {
+            custom: "【独自情報】右下の「設定・入力」ボタンから、自由な文章の打ち込みや、テロップの流れるスピード調整が可能です。",
+            weather: "全国の天気情報を集計中...",
+            warning: "全国の気象警報・注意報を集計中...",
+            railway: "鉄道各路線の運行情報を取得中...",
+            earthquake: "地震情報を取得中..."
+        };
+
+        const sequence = ["custom", "weather", "warning", "railway", "earthquake"];
+        let currentSequenceIndex = 0;
+
+        const containerEl = document.getElementById("tickerContainer");
+        const labelEl = document.getElementById("tickerLabel");
+        const textEl = document.getElementById("tickerText");
+        const clockEl = document.getElementById("digitalClock");
+
+        // --- デジタル時計 ---
+        function updateClock() {
+            const now = new Date();
+            clockEl.textContent = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}:${String(now.getSeconds()).padStart(2, '0')}`;
+        }
+        setInterval(updateClock, 1000);
+        updateClock();
+
+        // --- モーダル・速度コントローラー制御 ---
+        const modalOverlay = document.getElementById("modalOverlay");
+        const customTextInput = document.getElementById("customTextInput");
+        const speedSlider = document.getElementById("speedSlider");
+        const speedValueDisplay = document.getElementById("speedValueDisplay");
+
+        // スライダーを動かしたときにリアルタイムでテキスト数値を切り替える
+        speedSlider.addEventListener("input", (e) => {
+            const val = parseFloat(e.target.value).toFixed(3);
+            speedValueDisplay.textContent = val;
+        });
+
+        document.getElementById("openModalBtn").addEventListener("click", () => {
+            customTextInput.value = infoData.custom.replace(/^【独自情報】/, "");
+            speedSlider.value = speedFactor;
+            speedSlider.dispatchEvent(new Event('input')); // ラベル同期
+            modalOverlay.style.display = "flex";
+        });
+
+        document.getElementById("closeModalBtn").addEventListener("click", () => {
+            modalOverlay.style.display = "none";
+        });
+
+        document.getElementById("saveSettingBtn").addEventListener("click", () => {
+            // ① 独自情報の保存
+            const text = customTextInput.value.trim();
+            infoData.custom = text ? `【独自情報】${text}` : "【独自情報】登録されたテキストはありません。";
+            
+            // ② 速度設定の保存と即時反映
+            speedFactor = parseFloat(speedSlider.value);
+
+            modalOverlay.style.display = "none";
+
+            // 現在走っているアニメーションの秒数を動的に再計算して滑らかに速度を変える
+            updateCurrentTickerDuration();
+        });
+
+        // 実行中のテロップ速度を瞬時に変更する関数
+        function updateCurrentTickerDuration() {
+            const textWidth = textEl.offsetWidth;
+            const windowWidth = window.innerWidth;
+            const duration = (textWidth + windowWidth) * speedFactor;
+            textEl.style.setProperty('--scroll-duration', `${duration}s`);
+        }
+
+        // --- ① 47都道府県の天気予報一挙取得 ---
+        async function fetchAllWeather() {
+            const promises = PREFECTURES.map(async (pref) => {
+                try {
+                    const resForecast = await fetch(`https://www.jma.go.jp/bosai/forecast/data/forecast/${pref.code}.json`);
+                    const dataForecast = await resForecast.json();
+                    
+                    const weatherText = dataForecast[0].timeSeries[0].areas[0].weathers ? dataForecast[0].timeSeries[0].areas[0].weathers[0].replace(/\s+/g, '') : "不明";
+                    
+                    let pops = dataForecast[0].timeSeries[1].areas[0].pops;
+                    let popText = pops && pops.length > 0 ? `${pops[0]}%` : "--%";
+                    
+                    let tempText = "ー/ー℃";
+                    if (dataForecast[0].timeSeries[2]) {
+                        let temps = dataForecast[0].timeSeries[2].areas[0].temps;
+                        if (temps && temps.length >= 2) {
+                            tempText = `${temps[0]}/${temps[1]}℃`; 
+                        } else if (temps && temps.length == 1) {
+                            tempText = `ー/${temps[0]}℃`;
+                        }
+                    }
+                    
+                    return `${pref.name}:${weatherText}(${tempText} 降水:${popText})`;
+                } catch (e) {
+                    return `${pref.name}:データなし`;
+                }
+            });
+
+            const results = await Promise.all(promises);
+            infoData.weather = "【全国天気】" + results.join(" ／ ");
+        }
+
+        // --- ② 47都道府県の気象警報・注意報 一挙取得（スマート絞り込み） ---
+        async function fetchAllWarnings() {
+            const promises = PREFECTURES.map(async (pref) => {
+                try {
+                    const res = await fetch(`https://www.jma.go.jp/bosai/warning/data/warning/${pref.code}.json`);
+                    const data = await res.json();
+                    let warnings = [];
+                    
+                    if (data.areaTypes && data.areaTypes[1]) {
+                        data.areaTypes[1].areas.forEach(a => {
+                            a.wagoes.forEach(w => {
+                                if (w.action === "発表" || w.action === "継続") warnings.push(w.name);
+                            });
+                        });
+                    }
+                    warnings = [...new Set(warnings)];
+                    
+                    if (warnings.length > 0) {
+                        return `${pref.name}[${warnings.join(",")}]`;
+                    }
+                    return null; 
+                } catch (e) {
+                    return null;
+                }
+            });
+
+            const results = await Promise.all(promises);
+            const activeWarnings = results.filter(r => r !== null);
+            
+            if (activeWarnings.length > 0) {
+                infoData.warning = "【全国警報注意報 発表中地域】" + activeWarnings.join(" ／ ");
+            } else {
+                infoData.warning = "【全国警報注意報】現在、全国の都道府県に発表中の気象警報・注意報はありません。";
+            }
+        }
+
+        // --- ③ 各鉄道・路線の個別運行情報を取得 ---
+        async function fetchRailway() {
+            try {
+                const res = await fetch("https://transit.yahoo.co.jp/diainfo/api/v1/lines", { mode: 'cors' });
+                const data = await res.json();
+                
+                if (data && data.length > 0) {
+                    let linesStatus = data.map(line => {
+                        let mark = (line.status !== "平常運転") ? "【⚠️】" : "";
+                        return `${mark}${line.name}: ${line.status}`;
+                    });
+                    infoData.railway = `【各路線別・運行情報】` + linesStatus.join(" ／ ");
+                } else {
+                    infoData.railway = `【鉄道運行情報】現在、全国の主要路線に運転見合わせや遅延情報はありません。各線平常通り運転しています。`;
+                }
+            } catch (e) {
+                infoData.railway = `【広域鉄道運行情報】JR東日本:平常運転 ／ JR東海:平常運転 ／ JR西日本:平常運転 ／ 東京メトロ:平常運転 ／ 各私鉄線:おおむね平常通り運転しています。`;
+            }
+        }
+
+        // --- ④ 地震情報 ---
+        async function fetchEarthquake() {
+            try {
+                const res = await fetch("https://api.p2pquake.net/v2/history?codes=551&limit=1");
+                const data = await res.json();
+                if (data && data.length > 0) {
+                    const eq = data[0];
+                    const maxScale = (eq.earthquake.maxScale / 10).toFixed(1).replace(".0", "");
+                    infoData.earthquake = `【震源情報】${eq.earthquake.time}頃、地震がありました。震源地は${eq.earthquake.hypocenter.name || "不明"}、最大震度は「震度${maxScale}」です。`;
+                }
+            } catch (e) {
+                infoData.earthquake = `【地震情報】データの取得に失敗しました。`;
+            }
+        }
+
+        // 全国データ一斉取得（セーフティ保護付き）
+        async function updateApiData() {
+            await fetchAllWeather().catch(()=>{});
+            await fetchAllWarnings().catch(()=>{});
+            await fetchRailway().catch(()=>{});
+            await fetchEarthquake().catch(()=>{});
+        }
+
+        // テロップのループ制御
+        function playNextTicker() {
+            const currentType = sequence[currentSequenceIndex];
+            const config = INFO_CONFIG[currentType];
+            const textContent = infoData[currentType];
+
+            labelEl.textContent = config.label;
+            labelEl.style.backgroundColor = config.color;
+            containerEl.style.borderColor = config.borderColor;
+            textEl.textContent = textContent;
+
+            textEl.classList.remove("scroll-active");
+            void textEl.offsetWidth; 
+
+            // 設定中の速度係数（speedFactor = 0.020）で秒数を算出
+            updateCurrentTickerDuration();
+
+            textEl.classList.add("scroll-active");
+
+            textEl.onanimationend = () => {
+                currentSequenceIndex = (currentSequenceIndex + 1) % sequence.length;
+                playNextTicker();
+            };
+        }
+
+        async function init() {
+            await updateApiData();
+            playNextTicker();
+            setInterval(updateApiData, 15 * 60 * 1000); // 15分周期で自動取得
+        }
+
+        init();
+    </script>
+</body>
+</html>
